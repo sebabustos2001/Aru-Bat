@@ -1,0 +1,5 @@
+# i2c addresses
+
+add_sht3x_1:0x44
+add_sht3x_2:0x48
+add_display_1:0x3c
