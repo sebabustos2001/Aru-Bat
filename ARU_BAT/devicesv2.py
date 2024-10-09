@@ -5,11 +5,24 @@ import pyaudio
 import wave
 import json
 import curses
+import RPi.GPIO as GPIO
+
 from datetime import datetime
 from luma.core.interface.serial import i2c
 from luma.core.render import canvas
 from luma.oled.device import ssd1306
 from PIL import ImageFont
+
+# Configuracion de pines para los botones
+BUTTON_LEFT = 5   # Aumenta el numero
+BUTTON_MIDDLE = 6 # Retrocede una accion
+BUTTON_RIGHT = 13 # Confirma la accion
+
+# Configuracion de GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(BUTTON_LEFT, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(BUTTON_MIDDLE, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(BUTTON_RIGHT, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 class SensorSHT3x:
 	# RasPi5 only have 1 I2C bus to free use (bus = 1)
@@ -279,82 +292,91 @@ class Display:
 			self.device.clear()
 
 class DisplayController:
+	
 	def __init__(self, Display):
 		self.display = Display
 
-	def choose_time(self, editable_time, edit_start_time = False, edit_end_time = False):
+	def choose_time(self, editable_time, edit_start_time=False, edit_end_time=False):
 		cursor_pos = 0
-		if edit_start_time is True:
-			def refresh_display(editable_time):
-				with canvas(self.display.device) as draw:
-					current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-					draw.text((10, 10), f"SET START TIME", fill="white")
-					draw.text((10, 30), current_time, fill="white")
-					draw.text((10, 50), editable_time, fill="white")
-		elif edit_end_time is True:
-			def refresh_display(editable_time):
-				with canvas(self.display.device) as draw:
-					current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-					draw.text((10, 10), f"SET END TIME", fill="white")
-					draw.text((10, 30), current_time, fill="white")
-					draw.text((10, 50), editable_time, fill="white")
-					
-		# Crear un entorno curses para capturar teclas
-		def handle_keyboard(stdscr):
-			nonlocal editable_time, cursor_pos
-			curses.curs_set(0)  # Ocultar cursor
-			refresh_display(editable_time)
-
-			while True:
-				key = stdscr.getch()  # Capturar la tecla
-
-				# Flecha arriba (incrementar el digito)
-				if key == curses.KEY_UP:
-					editable_time = self.increment_digit(editable_time, cursor_pos)
-				# Flecha abajo (decrementar el digito)
-				elif key == curses.KEY_DOWN:
-					editable_time = self.decrement_digit(editable_time, cursor_pos)
-				# Flecha derecha (mover cursor a la derecha)
-				elif key == curses.KEY_RIGHT:
-					cursor_pos = min(cursor_pos + 1, len(editable_time) - 1)
-				# Flecha izquierda (mover cursor a la izquierda)
-				elif key == curses.KEY_LEFT:
-					cursor_pos = max(cursor_pos - 1, 0)
-				# Enter (guardar tiempo y salir)
-				elif key == ord('\n'):
-					if edit_start_time is True:
-						self.display.start_time = editable_time
-						with open("config.json", "r") as json_file:
-							configs = json.load(json_file)
-						configs["start_time"] = self.display.start_time
-						with open("config.json", "w") as json_file:
-							json.dump(configs, json_file, indent = 4)
-						break
-					if edit_end_time is True:
-						self.display.end_time = editable_time
-						with open("config.json", "r") as json_file:
-							configs = json.load(json_file)
-						configs["end_time"] = self.display.end_time
-						with open("config.json", "w") as json_file:
-							json.dump(configs, json_file, indent = 4)
-						break
-				refresh_display(editable_time)
+		if edit_start_time:
+			message = "SET START TIME"
+		elif edit_end_time:
+			message = "SET END TIME"
 		
-		curses.wrapper(handle_keyboard)
+		def refresh_display(editable_time):
+			with canvas(self.display.device) as draw:
+				current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+				draw.text((10, 10), message, fill="white")
+				draw.text((10, 30), current_time, fill="white")
+				draw.text((10, 50), editable_time, fill="white")
+
+		while True:
+			refresh_display(editable_time)
+            
+			# Espera hasta que se presione un boton
+			if GPIO.input(BUTTON_LEFT) == GPIO.LOW:
+				editable_time = self.increment_digit(editable_time, cursor_pos)
+				time.sleep(0.2)  # Debounce
+			elif GPIO.input(BUTTON_MIDDLE) == GPIO.LOW:
+				cursor_pos = max(cursor_pos - 1, 0)
+				time.sleep(0.2)
+			elif GPIO.input(BUTTON_RIGHT) == GPIO.LOW:
+				cursor_pos += 1
+				if cursor_pos >= len(editable_time):
+					# Confirmacion final
+					refresh_display(editable_time)
+					confirmed = self.confirm_time(editable_time)
+					if confirmed:
+						if edit_start_time:
+							self.display.start_time = editable_time
+							self.update_config("start_time", editable_time)
+						if edit_end_time:
+							self.display.end_time = editable_time
+							self.update_config("end_time", editable_time)
+						break
+					else:
+						cursor_pos = 0
+				time.sleep(0.2)
 
 	def increment_digit(self, editable_time, pos):
-		# Incrementar el digito en la posicion actual
 		if editable_time[pos].isdigit():
 			new_digit = (int(editable_time[pos]) + 1) % 10
 			editable_time = editable_time[:pos] + str(new_digit) + editable_time[pos + 1:]
 		return editable_time
 
-	def decrement_digit(self, editable_time, pos):
-		# Decrementar el digito en la posicion actual
-		if editable_time[pos].isdigit():
-			new_digit = (int(editable_time[pos]) - 1) % 10
-			editable_time = editable_time[:pos] + str(new_digit) + editable_time[pos + 1:]
-		return editable_time
+	def confirm_time(self, editable_time):
+		options = ["SI", "NO"]
+		selected_option = 0
+
+		while True:
+			with canvas(self.display.device) as draw:
+				# Muestra el mensaje de confirmacion y la fecha
+				draw.text((10, 10), "Confirmar?", fill="white")
+				draw.text((10, 30), editable_time, fill="white")
+            
+				# Resalta la opcion seleccionada invirtiendo colores
+				for i, option in enumerate(options):
+					x_pos = 10 + i * 50
+					y_pos = 50
+					if i == selected_option:
+						draw.rectangle((x_pos, y_pos, x_pos + 40, y_pos + 20), outline="white", fill="white")
+						draw.text((x_pos + 10, y_pos), option, fill="black")
+					else:
+						draw.text((x_pos + 10, y_pos), option, fill="white")
+
+			# Verifica que boton se presiona
+			if GPIO.input(BUTTON_LEFT) == GPIO.LOW:
+				selected_option = (selected_option + 1) % 2  # Cambia entre 0 y 1
+				time.sleep(0.2)  # Debounce
+			elif GPIO.input(BUTTON_RIGHT) == GPIO.LOW:
+				return options[selected_option] == "SI"
+
+	def update_config(self, key, value):
+		with open("config.json", "r") as json_file:
+			configs = json.load(json_file)
+		configs[key] = value
+		with open("config.json", "w") as json_file:
+			json.dump(configs, json_file, indent=4)
 		
 
 	# Funcion para elegir el modo de grabacion
@@ -362,52 +384,39 @@ class DisplayController:
 		options = ["CONSTANT", "STATE"]
 		selected_option = 0
 
-		def refresh_display2():
+		while True:
 			with canvas(self.display.device) as draw:
+				# Muestra el mensaje para elegir el modo de grabacion
 				draw.text((10, 10), "CHOOSE RECORD MODE:", fill="white")
-
-				# Mostrar las opciones y resaltar la seleccionada
+            
+				# Resalta la opcion seleccionada invirtiendo colores
 				for i, option in enumerate(options):
+					x_pos = 10
+					y_pos = 30 + i * 20
 					if i == selected_option:
-						# Colores invertidos para la opcion seleccionada
-						draw.rectangle((10, 30 + i*20, 80, 50 + i*20), outline="white", fill="white")
-						draw.text((12, 30 + i*20), option, fill="black")
+						draw.rectangle((x_pos, y_pos, x_pos + 80, y_pos + 15), outline="white", fill="white")
+						draw.text((x_pos + 10, y_pos), option, fill="black")
 					else:
-						draw.text((10, 30 + i*20), option, fill="white")
+						draw.text((x_pos + 10, y_pos), option, fill="white")
 
-		def handle_keyboard(stdscr):
-			nonlocal selected_option
-			curses.curs_set(0)  # Ocultar cursor
-			refresh_display2()
+			# Verifica que boton se presiona
+			if GPIO.input(BUTTON_LEFT) == GPIO.LOW:
+				selected_option = (selected_option + 1) % len(options)  # Alterna entre 0 y 1
+				time.sleep(0.2)  # Debounce
+			elif GPIO.input(BUTTON_RIGHT) == GPIO.LOW:
+				# Actualiza la configuracion segun la seleccion y guarda en config.json
+				if selected_option == 0:  # CONSTANT
+					self.display.constant_rec = True
+					self.display.state_rec = False
+				else:  # STATE
+					self.display.constant_rec = False
+					self.display.state_rec = True
 
-			while True:
-				key = stdscr.getch()  # Capturar la tecla
-
-				# Flecha arriba para moverse hacia arriba en las opciones
-				if key == curses.KEY_UP:
-					selected_option = (selected_option - 1) % len(options)
-				# Flecha abajo para moverse hacia abajo en las opciones
-				elif key == curses.KEY_DOWN:
-					selected_option = (selected_option + 1) % len(options)
-				# Enter para confirmar la seleccion
-				elif key == ord('\n'):
-					# Actualizar el archivo JSON segun la opcion seleccionada
-					if selected_option == 0:  # CONSTANT
-						self.display.constant_rec = True
-						self.display.state_rec = False
-					else:  # STATE
-						self.display.constant_rec = False
-						self.display.state_rec = True
-
-					# Guardar la seleccion en el archivo JSON
-					with open("config.json", "r") as json_file:
-						configs = json.load(json_file)
-					configs["constant_record"] = self.display.constant_rec
-					configs["state_record"] = self.display.state_rec
-					with open("config.json", "w") as json_file:
-						json.dump(configs, json_file, indent=4)
-					break
-
-				refresh_display2()
-
-		curses.wrapper(handle_keyboard)
+				with open("config.json", "r") as json_file:
+					configs = json.load(json_file)
+				configs["constant_record"] = self.display.constant_rec
+				configs["state_record"] = self.display.state_rec
+				with open("config.json", "w") as json_file:
+					json.dump(configs, json_file, indent=4)
+            
+				break
