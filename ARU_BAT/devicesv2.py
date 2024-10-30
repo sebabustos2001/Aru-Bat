@@ -7,7 +7,7 @@ import json
 import curses
 import RPi.GPIO as GPIO
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from luma.core.interface.serial import i2c
 from luma.core.render import canvas
 from luma.oled.device import ssd1306
@@ -55,7 +55,6 @@ class SensorSHT3x:
 	
 	def write_data(self, temperature, humidity):
 		"""Write sensor data and Datetime on the log.txt file"""
-		
 		current_time = datetime.now()
 		with open(self.log_file, 'a') as f:
 			f.write(f"{current_time.year}-"
@@ -75,8 +74,8 @@ class SensorSHT3x:
 class Microphone_Record():
 	def __init__(self, 
 				channels=1, 
-				sampling_frec=48000, 
-				chunk=1024, 
+				sampling_frec=250000, 
+				chunk=16384, 
 				record_seconds=5, 
 				output_file="output.wav"):
 		
@@ -89,11 +88,6 @@ class Microphone_Record():
 		self.record_dir = "Mic_Records"
 		if not os.path.exists(self.record_dir):
 			os.makedirs(self.record_dir)
-		
-		#self.output_file = os.path.join(self.record_dir, 
-		#								output_file)
-
-		# Initialize PyAudio
 		self.audio = pyaudio.PyAudio()
 
 	def start_recording(self):
@@ -138,48 +132,51 @@ class Microphone_Record():
 
 class RTC:
 	def __init__(self):
-		# Variable which save the actual RTC time
-		self.current_time = self.get_rtc_time()
-	
+		self.rtc_path = '/dev/rtc'
+		
 	def get_rtc_time(self):
-		# Obtains actual RTC time
-		rtc_time = datetime.now()
-		return rtc_time
+		"""Obtains RTC time from Raspberry Pi 5."""
+		try:
+			# Leer la hora directamente del RTC usando hwclock
+			rtc_time = os.popen("sudo hwclock -r").read().strip()
+			return datetime.strptime(rtc_time, "%Y-%m-%d %H:%M:%S.%f %z")
+		
+		except Exception as e:
+			print("Error al obtener la hora del RTC:", e)
+			return None
 	
-	def set_wake_alarm(self, wake_time=None):
-		"""
-		Configura la alarma para despertar.
-		- Si 'wake_time' es un numero, se utiliza como el numero de segundos para la alarma.
-		- Si 'wake_time' es un string en formato 'HH:MM', la Raspberry Pi despertara a esa hora.
-		"""
-		if wake_time is None:
-			print("Debe proporcionar un tiempo para la alarma.")
-			return
-			
-		# Si es un string (formato DD:HH:MM)
-		if isinstance(wake_time, str):
-			try:
-				current_time = datetime.now()
-				target_time = datetime.strptime(wake_time, "%H:%M").replace(
-					year=current_time.year, month=current_time.month, day=current_time.day
-				)
-				
-				# Si la hora objetivo ya paso hoy, ajusta para el dia siguiente
-				if target_time < current_time:
-					target_time += timedelta(days=1)
-				
-				seconds_until_wake = int((target_time - current_time).total_seconds())
-				os.system(f'sudo sh -c "echo +{seconds_until_wake} > /sys/class/rtc/rtc0/wakealarm"')
-				print(f"Alarma configurada para despertar a las {wake_time}.")
-				
-			except ValueError:
-				print("Error: El formato de la hora debe ser 'HH:MM'.")
-		else:
-			print("Error: El argumento debe ser un numero (segundos) o un string en formato 'HH:MM'.")
+	def set_system_time_from_rtc(self):
+		"""Refresh OS time using the RTC time."""
+		try:
+			os.system("sudo hwclock -s")
+		except Exception as e:
+			print("Error al actualizar la hora del sistema desde el RTC:", e)
 	
-	def refresh_time(self):
-		# Actualiza la hora actual del RTC
-		self.current_time = self.get_rtc_time()
+	def set_wake_alarm(self, wake_time_str):
+		"""Sets the wake-up alarm for the Raspberry Pi."""
+		current_time = datetime.now()
+		wake_time = datetime.strptime(wake_time_str, "%H:%M").replace(
+			year=current_time.year, month=current_time.month, day=current_time.day
+		)
+		if wake_time <= current_time:
+			wake_time += timedelta(days=1)
+		seconds_until_wake = int((wake_time - current_time).total_seconds())
+		os.system('sudo echo 0 | sudo tee /sys/class/rtc/rtc0/wakealarm')
+		
+		os.system(f'sudo echo +{seconds_until_wake} | sudo tee /sys/class/rtc/rtc0/wakealarm')
+		print(f"Wake alarm set for {wake_time}.")
+	
+	def set_shutdown_alarm(self, shutdown_time_str):
+		"""Sets the shutdown alarm for the Raspberry Pi."""
+		current_time = datetime.now()
+		shutdown_time = datetime.strptime(shutdown_time_str, "%H:%M").replace(
+			year=current_time.year, month=current_time.month, day=current_time.day
+		)
+		if shutdown_time <= current_time:
+			shutdown_time += timedelta(days=1)
+		seconds_until_shutdown = int((shutdown_time - current_time).total_seconds())
+		print(f"Shutdown alarm set for {shutdown_time}.")
+		os.system(f'sudo shutdown -h +{seconds_until_shutdown // 60}')
 
 class Display:
 	def __init__(self):
@@ -198,64 +195,69 @@ class Display:
 		self.state_rec = self.configs["state_record"]
 					
 	def MOTD(self, message, duration=1):
+		font = ImageFont.truetype("DejaVuSans.ttf", 15)
 		with canvas(self.device) as draw:
 			
 			# Dibujar texto en el centro de la pantalla
-			text_size = draw.textsize(message)
+			text_size = draw.textsize(message, font = font)
 			x_pos = (self.width - text_size[0]) // 2
 			y_pos = (self.height - text_size[1]) // 2
-			draw.text((x_pos, y_pos), message, fill="white")
+			draw.text((x_pos, y_pos), message, font = font, fill="white")
 
 		time.sleep(duration)
 		self.device.clear()
 	
-	def check_settings(self):
+	def setup_config(self):
 		if self.start_time is None:
+			font = ImageFont.truetype("DejaVuSans.ttf", 15)
 			with canvas(self.device) as draw:
-				text_size = draw.textsize("START TIME IS NO SET")
+				text_size = draw.textsize("START TIME\nNO SET", font = font)
 				x_pos = (self.width - text_size[0]) // 2
 				y_pos = (self.height - text_size[1]) // 2
-				draw.text((x_pos, y_pos), "START TIME IS NO SET", fill="white")	
+				draw.text((x_pos, y_pos), "START TIME\nNO SET", font = font, fill="white")	
 			time.sleep(3)
 			self.device.clear()
 			
-			editable_time = "0000-00-00 00:00"
-			self.display_controller.choose_time(editable_time, edit_start_time = True)
+			editable_time = "00:00"
+			self.display_controller.set_time(editable_time, edit_start_time = True)
 			
 		self.edit_start_time = False
 				
 		if self.end_time is None:
+			font = ImageFont.truetype("DejaVuSans.ttf", 15)
 			with canvas(self.device) as draw:
-				text_size = draw.textsize("END TIME NOT SET")
+				text_size = draw.textsize("END TIME\nNOT SET", font = font)
 				x_pos = (self.width - text_size[0]) // 2
 				y_pos = (self.height - text_size[1]) // 2
-				draw.text((x_pos, y_pos), "END TIME NOT SET", fill="white")
+				draw.text((x_pos, y_pos), "END TIME\nNOT SET", font = font, fill="white")
 				
 			time.sleep(3)
 			self.device.clear()
 			
-			editable_time = "0000-00-00 00:00"
-			self.display_controller.choose_time(editable_time, edit_end_time = True)
+			editable_time = "00:00"
+			self.display_controller.set_time(editable_time, edit_end_time = True)
 			
 		self.edit_end_time = False
 		
 		if self.constant_rec is False and self.state_rec is False:
+			font = ImageFont.truetype("DejaVuSans.ttf", 15)
 			with canvas(self.device) as draw:
-				text_size = draw.textsize("RECORD MODE NOT SET")
+				text_size = draw.textsize("RECORD MODE\nNOT SET", font = font)
 				x_pos = (self.width - text_size[0]) // 2
 				y_pos = (self.height - text_size[1]) // 2
-				draw.text((x_pos, y_pos), "RECORD MODE NOT SET", fill="white")
+				draw.text((x_pos, y_pos), "RECORD MODE\nNOT SET", font = font, fill="white")
 				
 			time.sleep(3)
 			self.device.clear()
-			self.display_controller.choose_record_mode()
+			self.display_controller.set_record_mode()
 			
 		elif self.constant_rec is True and self.state_rec is True:
+			font = ImageFont.truetype("DejaVuSans.ttf", 15)
 			with canvas(self.device) as draw:
-				text_size = draw.textsize("RECORD MODE NOT SET")
+				text_size = draw.textsize("RECORD MODE\nNOT SET", font = font)
 				x_pos = (self.width - text_size[0]) // 2
 				y_pos = (self.height - text_size[1]) // 2
-				draw.text((x_pos, y_pos), "RECORD MODE NOT SET", fill="white")
+				draw.text((x_pos, y_pos), "RECORD MODE\nNOT SET", font = font, fill="white")
 				
 			time.sleep(3)
 			self.device.clear()
@@ -263,10 +265,10 @@ class Display:
 			self.configs["state_record"] = False
 			with open("config.json", "w") as json_file:
 				json.dump(self.configs, json_file, indent=4)
-			self.display_controller.choose_record_mode()
+			self.display_controller.set_record_mode()
 
 	def actual_config(self, duration = 5):
-		font = ImageFont.truetype("DejaVuSans.ttf", 8)
+		font = ImageFont.truetype("DejaVuSans.ttf", 9)
 		if self.constant_rec is True:
 			with canvas(self.device) as draw:
 				conf_message = f"START TIME:{self.start_time}\nEND TIME:{self.end_time}\nRECORD MODE: Constant"
@@ -283,29 +285,31 @@ class Display:
 			time.sleep(duration)
 			self.device.clear()
 			
-		else:
-			with canvas(self.device) as draw:
-				conf_message = f"START TIME:{self.start_time}\nEND TIME:{self.end_time}\nRECORD MODE: {None}"
-				text_size = draw.textsize(conf_message, font = font)
-				draw.text((10, 20), conf_message, font = font, fill="white")	
-			time.sleep(duration)
-			self.device.clear()
+	def start_program(self):
+		with open("config.json", "r") as json_file:
+			configs = json.load(json_file)
+		self.display_controller.ask_start_recording()
+		
+	def stop_program(self):
+		with open("config.json", "r") as json_file:
+			configs = json.load(json_file)
+		self.display_controller.ask_stop_recording()
 
 class DisplayController:
 	
 	def __init__(self, Display):
 		self.display = Display
 
-	def choose_time(self, editable_time, edit_start_time=False, edit_end_time=False):
+	def set_time(self, editable_time, edit_start_time=False, edit_end_time=False):
 		cursor_pos = 0
 		if edit_start_time:
 			message = "SET START TIME"
-		elif edit_end_time:
+		if edit_end_time:
 			message = "SET END TIME"
 		
 		def refresh_display(editable_time):
 			with canvas(self.display.device) as draw:
-				current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+				current_time = datetime.now().strftime("%H:%M")
 				draw.text((10, 10), message, fill="white")
 				draw.text((10, 30), current_time, fill="white")
 				draw.text((10, 50), editable_time, fill="white")
@@ -323,7 +327,7 @@ class DisplayController:
 			elif GPIO.input(BUTTON_RIGHT) == GPIO.LOW:
 				cursor_pos += 1
 				if cursor_pos >= len(editable_time):
-					# Confirmacion final
+					# Final confirmation
 					refresh_display(editable_time)
 					confirmed = self.confirm_time(editable_time)
 					if confirmed:
@@ -345,14 +349,14 @@ class DisplayController:
 		return editable_time
 
 	def confirm_time(self, editable_time):
-		options = ["SI", "NO"]
+		options = ["YES", "NO"]
 		selected_option = 0
 
 		while True:
 			with canvas(self.display.device) as draw:
 				# Muestra el mensaje de confirmacion y la fecha
-				draw.text((10, 10), "Confirmar?", fill="white")
-				draw.text((10, 30), editable_time, fill="white")
+				draw.text((10, 30), "CONFIRM? -> ", fill="white")
+				draw.text((50, 30), editable_time, fill="white")
             
 				# Resalta la opcion seleccionada invirtiendo colores
 				for i, option in enumerate(options):
@@ -369,7 +373,7 @@ class DisplayController:
 				selected_option = (selected_option + 1) % 2  # Cambia entre 0 y 1
 				time.sleep(0.2)  # Debounce
 			elif GPIO.input(BUTTON_RIGHT) == GPIO.LOW:
-				return options[selected_option] == "SI"
+				return options[selected_option] == "YES"
 
 	def update_config(self, key, value):
 		with open("config.json", "r") as json_file:
@@ -380,7 +384,7 @@ class DisplayController:
 		
 
 	# Funcion para elegir el modo de grabacion
-	def choose_record_mode(self):
+	def set_record_mode(self):
 		options = ["CONSTANT", "STATE"]
 		selected_option = 0
 
@@ -420,3 +424,68 @@ class DisplayController:
 					json.dump(configs, json_file, indent=4)
             
 				break
+	
+	def ask_stop_recording(self):
+		options = ["YES", "NO"]
+		selected_option = 0
+		message = "Recording...\nWant to Stop it?"
+
+		while True:
+			with canvas(self.display.device) as draw:
+				# Mensaje de confirmacion para detener grabacion
+				draw.text((10, 20), message, fill="white")
+				
+				# Opciones de si o no
+				for i, option in enumerate(options):
+					x_pos = 10 + i * 50
+					y_pos = 50
+					if i == selected_option:
+						draw.rectangle((x_pos, y_pos, x_pos + 40, y_pos + 20), outline="white", fill="white")
+						draw.text((x_pos + 10, y_pos), option, fill="black")
+					else:
+						draw.text((x_pos + 10, y_pos), option, fill="white")
+
+			# Comportamiento de los botones
+			if GPIO.input(BUTTON_LEFT) == GPIO.LOW:
+				selected_option = (selected_option + 1) % 2
+				time.sleep(0.2)  # Debounce
+			elif GPIO.input(BUTTON_RIGHT) == GPIO.LOW:
+				if options[selected_option] == "YES":
+					self.update_config("program", False)
+				return  # Si selecciona NO, salir de la funcion sin hacer cambios
+
+	def ask_start_recording(self):
+		options = ["YES", "NO"]
+		selected_option = 0
+		message = "START RECORDING?"
+
+		while True:
+			with canvas(self.display.device) as draw:
+				# Mensaje de confirmacion para iniciar grabacion
+				draw.text((10, 30), message, fill="white")
+                
+				# Opciones de si o no
+				for i, option in enumerate(options):
+					x_pos = 10 + i * 50
+					y_pos = 50
+					if i == selected_option:
+						draw.rectangle((x_pos, y_pos, x_pos + 40, y_pos + 20), outline="white", fill="white")
+						draw.text((x_pos + 10, y_pos), option, fill="black")
+					else:
+						draw.text((x_pos + 10, y_pos), option, fill="white")
+
+			# Comportamiento de los botones
+			if GPIO.input(BUTTON_LEFT) == GPIO.LOW:
+				selected_option = (selected_option + 1) % 2
+				time.sleep(0.2)  # Debounce
+			elif GPIO.input(BUTTON_RIGHT) == GPIO.LOW:
+				if options[selected_option] == "YES":
+					self.update_config("program", True)
+				return  # Si selecciona NO, salir de la funcion sin hacer cambios
+
+	def update_config(self, key, value):
+		with open("config.json", "r") as json_file:
+			configs = json.load(json_file)
+		configs[key] = value
+		with open("config.json", "w") as json_file:
+			json.dump(configs, json_file, indent=4)

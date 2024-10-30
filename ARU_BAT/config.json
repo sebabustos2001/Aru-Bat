@@ -1,7 +1,7 @@
 {
-    "program": false,
-    "start_time": "1111-11-11 11:11",
-    "end_time": "2222-22-22 22:22",
+    "program": true,
+    "start_time": "21:00",
+    "end_time": "03:00",
     "constant_record": true,
     "state_record": false
 }
