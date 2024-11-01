@@ -11,3 +11,29 @@ add_display_1:0x3c
 
 POWER_OFF_ON_HALT=1	# permite que la Raspberry Pi se apague completamente cuando se emite un comando de apagado (halt)
 WAKE_ON_GPIO=0		# Deshabilita la capacidad de que la Raspberry Pi se despierte mediante una señal del GPIO
+
+# Configurar Entrada de sonido de microfono como principal
+admin@aru0:~ $ arecord -l
+**** List of CAPTURE Hardware Devices ****
+card 2: r4 [UltraMic 250K 16 bit r4], device 0: USB Audio [USB Audio]
+  Subdevices: 1/1
+  Subdevice #0: subdevice #0
+
+
+# Generar servicio para ejecucion automatica al encender RaspberryPi5
+[Unit]
+Description=Ejecutar script __main__.py despues de arranque OS
+After=network.target
+
+[Service]
+#Type=simple
+ExecStart=/usr/bin/python3 /home/admin/ARU/ARU_BAT/__main__.py
+WorkingDirectory=/home/admin/ARU/ARU_BAT
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=admin  -> Cambiar por el nombre de usuario en el OS
+
+[Install]
+WantedBy=multi-user.target
+
