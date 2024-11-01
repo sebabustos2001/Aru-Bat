@@ -1,7 +1,7 @@
 # i2c addresses
 
 add_sht3x_1:0x44
-add_sht3x_2:0x48
+add_sht3x_2:0x45
 add_display_1:0x3c
 
 
@@ -13,6 +13,18 @@ POWER_OFF_ON_HALT=1	# permite que la Raspberry Pi se apague completamente cuando
 WAKE_ON_GPIO=0		# Deshabilita la capacidad de que la Raspberry Pi se despierte mediante una señal del GPIO
 
 # Configurar Entrada de sonido de microfono como principal
+# crear archivo asound.conf en /etc y agregar lo siguiente respecto a la tarjeta de audio del microfono
+pcm.!default {
+	type hw
+	card 0 #Colocar numero del micro
+	device 0
+}
+
+ctl.!default {
+	type hw
+	card 0 #Colocar numero del micro
+}
+
 admin@aru0:~ $ arecord -l
 **** List of CAPTURE Hardware Devices ****
 card 2: r4 [UltraMic 250K 16 bit r4], device 0: USB Audio [USB Audio]
@@ -36,4 +48,12 @@ User=admin  -> Cambiar por el nombre de usuario en el OS
 
 [Install]
 WantedBy=multi-user.target
+
+
+# Instalar dependencias y librerias para python3
+sudo apt install -y libasound-dev portaudio19-dev libportaudio2 libportaudiocpp0 ffmpeg
+sudo apt install -y python3-pip
+pip3 install pyaudio --break-system-packages
+pip3 install luma.oled --break-system-packages
+pip3 install pillow==9.4.0 #Version que aun funciona con textsize
 

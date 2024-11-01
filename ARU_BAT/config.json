@@ -1,6 +1,6 @@
 {
     "program": true,
-    "start_time": "20:00",
+    "start_time": "18:00",
     "end_time": "01:00",
     "constant_record": true,
     "state_record": false
