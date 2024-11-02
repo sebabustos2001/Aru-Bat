@@ -14,6 +14,7 @@ WAKE_ON_GPIO=0		# Deshabilita la capacidad de que la Raspberry Pi se despierte m
 
 # Configurar Entrada de sonido de microfono como principal
 # crear archivo asound.conf en /etc y agregar lo siguiente respecto a la tarjeta de audio del microfono
+# cat /proc/asound/cards para ver dispositivos conectados como audio
 pcm.!default {
 	type hw
 	card 0 #Colocar numero del micro
@@ -39,12 +40,12 @@ After=network.target
 
 [Service]
 #Type=simple
-ExecStart=/usr/bin/python3 /home/admin/ARU/ARU_BAT/__main__.py
-WorkingDirectory=/home/admin/ARU/ARU_BAT
+ExecStart=/usr/bin/python3 /home/student/Aru-Bat/ARU_BAT/__main__.py
+WorkingDirectory=/home/admin/Aru-Bat/ARU_BAT
 StandardOutput=inherit
 StandardError=inherit
 Restart=always
-User=admin  -> Cambiar por el nombre de usuario en el OS
+User=student  -> Cambiar por el nombre de usuario en el OS
 
 [Install]
 WantedBy=multi-user.target
@@ -56,4 +57,5 @@ sudo apt install -y python3-pip
 pip3 install pyaudio --break-system-packages
 pip3 install luma.oled --break-system-packages
 pip3 install pillow==9.4.0 #Version que aun funciona con textsize
-
+sudo apt remove python3-rpi.gpio
+pip3 install rpi.lgpio --break-system-packages

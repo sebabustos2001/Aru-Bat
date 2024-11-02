@@ -1,0 +1,2 @@
+Year-Month-Day	Time	Temperature[C°]	Humidity[%]
+2024-11-1	23:08:54	18.20	59.28
