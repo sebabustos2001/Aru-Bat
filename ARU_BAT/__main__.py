@@ -23,7 +23,7 @@ class BatSense:
 
 	def load_json_configs(self):
 		with open("config.json", "r") as json_file:
-			self.configs = json.load(json_file)
+			self.configs = json.load(json_file)	#upload variables from JSON file
 
 	def device_starting(self):
 		# Message of the Day
@@ -31,6 +31,7 @@ class BatSense:
 		self.display.device_time()
 		self.load_json_configs()
 		current_time = datetime.now().time()
+
 		if self.configs["program"] is False:
 			batsense.config_device()
 			self.display.actual_config()
@@ -61,19 +62,23 @@ class BatSense:
 
 	def Sensors(self):
 		# Instance for SHT3x sensor
-		TEMPSensor_1 = SHT3x(address=0x44)
-		#TEMPSensor_2 = SHT3x(address=0x45)
+		SHT3xSensor_1 = SHT3x(address=0x44)
+		SHT3xSensor_1.set_precision(mode='low')
 
-		TEMPSensor_1.set_precision(mode='low')
-		#TEMPSensor_2.set_precision(mode='low')
+		#SHT3xSensor_2 = SHT3x(address=0x45)
+		#SHT3xSensor_2.set_precision(mode='low')
 
 		while True:
-			temp_in, humidity_in = TEMPSensor_1.read_sht3x()
-		#	temp_out, humidity_out = TEMPSensor_2.read_sht3x()
+			temp_in, humidity_in = SHT3xSensor_1.read_sht3x()
+			#temp_out, humidity_out = SHT3xSensor_2.read_sht3x()
 
-			TEMPSensor_1.write_sht3x(temp_in, humidity_in)
-		#	TEMPSensor_2.write_sht3x(temp_out, humidity_out)
+			SHT3xSensor_1.write_sht3x(temp_in, humidity_in)
+			#SHT3xSensor_2.write_sht3x(temp_out, humidity_out)
+
+			SHT3xSensor_1.print_sht3x(temp_in, humidity_in)
+			#SHT3xSensor_2.print_sht3x(temp_out, humidity_out)
 			time.sleep(30)
+
 
 	def recording(self):
 		mic = Microphone()

@@ -5,12 +5,13 @@ from datetime import datetime, timedelta
 
 class SHT3x:
 	# RasPi5 only have one I2C bus to free use (bus = 1)
-	def __init__(self, Bus=1, address=0x44):  	# I2C SHT3x 0x44 default address
-		self.bus = smbus2.SMBus(Bus)			# (0x45 second address)
+
+	def __init__(self, Bus=1, address=0x44):  # I2C SHT3x 0x44 default address
+		self.bus = smbus2.SMBus(Bus)	# (0x45 second address)
 		self.address = address
 		self.mode_sht3x = 0x10  	# Default Mode: Low Precision
 
-		self.log_file = f"DataSHT3x_{hex(self.address)}.txt".replace("0x", "")
+		self.log_file = f"BS01_TEMP__{hex(self.address)}.txt".replace("0x", "")
 
 		# If .txt file doesn't exist, generate .txt and write headers
 		if not os.path.exists(self.log_file):
@@ -41,7 +42,11 @@ class SHT3x:
 					f"{current_time.day}\t"
 					f"{current_time.strftime('%H:%M:%S')}\t"
 					f"{temperature:.2f}\t{humidity:.2f}\n")
-		print(f"Year-Month-Day\tTime\tTemperature\tHumidity[%]\n"
+
+	def print_sht3x(self, temperature, humidity):
+		# Print sensor data
+		current_time = datetime.now()
+		print(f"Year-Month-Day\tTime\tTemperature\tHumidity[%]\tBS01_{hex(self.address)}\n"
 			f"{current_time.year}-"
 			f"{current_time.month}-"
 			f"{current_time.day}\t"
