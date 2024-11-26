@@ -22,7 +22,7 @@ class Display:
 		self.constant_rec = self.configs["constant_record"]
 		self.state_rec = self.configs["state_record"]
 
-	def MOTD(self, message, duration=2):
+	def motd(self, message, duration=2):
 		font = ImageFont.truetype("DejaVuSans.ttf", 15)
 		with canvas(self.device) as draw:
 			# Write text on the center of display
@@ -33,7 +33,7 @@ class Display:
 		time.sleep(duration)
 		self.device.clear()
 
-	def device_time(self, duration=5):
+	def time(self, duration=5):
 		font = ImageFont.truetype("DejaVuSans.ttf", 12)
 		current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 		with canvas(self.device) as draw:

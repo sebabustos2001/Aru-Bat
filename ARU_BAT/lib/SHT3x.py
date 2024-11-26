@@ -21,7 +21,7 @@ class SHT3x:
 						"Temperature[C°]\t"
 						"Humidity[%]\n")
 
-	def read_sht3x(self):
+	def sht3x_read(self):
 		self.bus.write_i2c_block_data(self.address, 0x2C, [self.mode_sht3x])	# Measure command
 		data = self.bus.read_i2c_block_data(self.address, 0x00, 6)	# 6 data bytes read for sensor
 		temperature_raw = data[0] << 8 | data[1]
@@ -33,7 +33,7 @@ class SHT3x:
 
 		return temperature, humidity
 
-	def write_sht3x(self, temperature, humidity):
+	def sht3x_write(self, temperature, humidity):
 		# Write sensor data and Datetime on the log.txt file
 		current_time = datetime.now()
 		with open(self.log_file, 'a') as f:
@@ -43,8 +43,9 @@ class SHT3x:
 					f"{current_time.strftime('%H:%M:%S')}\t"
 					f"{temperature:.2f}\t{humidity:.2f}\n")
 
-	def print_sht3x(self, temperature, humidity):
+	def sht3x_print(self):
 		# Print sensor data
+		temperature, humidity = self.sht3x_read()
 		current_time = datetime.now()
 		print(f"Year-Month-Day\tTime\tTemperature\tHumidity[%]\tBS01_{hex(self.address)}\n"
 			f"{current_time.year}-"
@@ -53,7 +54,18 @@ class SHT3x:
 			f"{current_time.strftime('%H:%M:%S')}\t"
 			f"{temperature:.2f}\t{humidity:.2f}\n")
 
-	def set_precision(self, mode='low'):
+	def sht3x_data(self):
+		"""
+		Call `read_sht3x` to read data from sensor and then, 
+		write the data on the .txt file and print it to terminal using `write_sht3x`.
+		"""
+		try:
+			temperature, humidity = self.sht3x_read()
+			self.sht3x_write(temperature, humidity)
+		except Exception as e:
+			print(f"ERROR: READ/WRITE DATA SENSOR SHT3x {hex(self.address)}: {e}")
+
+	def sht3x_precision(self, mode='low'):
 		if mode == 'low':
 			self.mode_sht3x = 0x10
 		elif mode == 'medium':

@@ -10,30 +10,36 @@ from lib.RTC import RTC
 from lib.Microphone import Microphone
 from lib.Display import Display
 from lib.AudioProcessor import AudioProcessor
+from lib.GPS import GPS
 
-
-class BatSense:
-	def __init__(self, display, rtc):
-		self.display = display
-		self.rtc = rtc
+class BatSens:
+	def __init__(self):
 		self.temperature_process = None
 		self.mic_process = None
+		self.gps_process = None
 		self.audio_process = None
 		self.configs = {}
+		self.display = Display()	# Instance for Display class
+		self.rtc = RTC()	        # Instance for RTC class
 
 	def load_json_configs(self):
 		with open("config.json", "r") as json_file:
-			self.configs = json.load(json_file)	#upload variables from JSON file
+			self.configs = json.load(json_file)	# upload variables from JSON file
 
-	def device_starting(self):
+	def starting(self):
+		self.rtc.set_time()
 		# Message of the Day
-		self.display.MOTD("BatSense", duration = 3)
-		self.display.device_time()
-		self.load_json_configs()
+		self.display.motd("BatSens")
+		self.display.time()
+		self.batsens_set()
+
+	def batsens_set(self):
+		self.rtc.rtc_time()
 		current_time = datetime.now().time()
+		self.load_json_configs()
 
 		if self.configs["program"] is False:
-			batsense.config_device()
+			batsens.config_device()
 			self.display.actual_config()
 			self.load_json_configs()
 
@@ -44,48 +50,43 @@ class BatSense:
 
 			if self.start_time <= self.end_time:
 				if self.start_time <= current_time < self.end_time:
-					batsense.wake_alarm(self.start_time)
-					batsense.sleep_alarm(self.end_time)
-					batsense.processes()
+					batsens.wake_alarm(self.start_time)
+					batsens.sleep_alarm(self.end_time)
+					batsens.processes()
 				else:
-					batsense.wake_alarm(self.start_time)
+					batsens.wake_alarm(self.start_time)
 					os.system(f'sudo halt')
 
 			else:
 				if current_time >= self.start_time or current_time < self.end_time:
-					batsense.wake_alarm(self.start_time)
-					batsense.sleep_alarm(self.end_time)
-					batsense.processes()
+					batsens.wake_alarm(self.start_time)
+					batsens.sleep_alarm(self.end_time)
+					batsens.processes()
 				else:
-					batsense.wake_alarm(self.start_time)
+					batsens.wake_alarm(self.start_time)
 					os.system(f'sudo halt')
 
-	def Sensors(self):
-		# Instance for SHT3x sensor
+	def sensors(self):
+		# Instance for SHT3x sensors
 		SHT3xSensor_1 = SHT3x(address=0x44)
-		SHT3xSensor_1.set_precision(mode='low')
+		SHT3xSensor_1.sht3x_precision(mode='low')
 
 		#SHT3xSensor_2 = SHT3x(address=0x45)
-		#SHT3xSensor_2.set_precision(mode='low')
+		#SHT3xSensor_2.sht3x_precision(mode='low')
 
 		while True:
-			temp_in, humidity_in = SHT3xSensor_1.read_sht3x()
-			#temp_out, humidity_out = SHT3xSensor_2.read_sht3x()
-
-			SHT3xSensor_1.write_sht3x(temp_in, humidity_in)
-			#SHT3xSensor_2.write_sht3x(temp_out, humidity_out)
-
-			SHT3xSensor_1.print_sht3x(temp_in, humidity_in)
-			#SHT3xSensor_2.print_sht3x(temp_out, humidity_out)
+			SHT3xSensor_1.sht3x_data()
+			SHT3xSensor_1.sht3x_print()
 			time.sleep(30)
 
 
 	def recording(self):
+		# Instance for Microphone
 		mic = Microphone()
+
 		if self.configs["constant_record"] is True:
 			while True:
 				mic.start_recording()
-				time.sleep(0.1)
 
 		elif self.configs["state_record"] is True:
 			return 0	# On develop
@@ -97,35 +98,36 @@ class BatSense:
 			audio_process.process_audio_files()
 			time.sleep(2)
 
+	def config_device(self):
+		self.display.setup_config()
+		self.display.actual_config()
+
+	def wake_alarm(self, start_time):
+		start_time_str = start_time.strftime("%H:%M")
+		self.rtc.wake_alarm(start_time_str)
+
+	def sleep_alarm(self, end_time):
+		end_time_str = end_time.strftime("%H:%M")
+		self.rtc.halt_alarm(end_time_str)
+
+	def gps(self):
+		gps = GPS()
+		while True:
+			gps.get_location()
+			print("GPS lecture done. Waiting 30 minutes")
+			time.sleep(1800)
+
 	def processes(self):
-		self.temp_process = Process(target = self.Sensors)
+		self.temp_process = Process(target = self.sensors)
 		self.mic_process = Process(target = self.recording)
+		self.gps_process = Process(target=self.gps)
 		#self.audio_process = Process(target = self.audio_processing)
 
 		self.temp_process.start()
 		self.mic_process.start()
+		self.gps_process.start()
 		#self.audio_process.start()
 
-	def config_device(self):
-		self.display.setup_config()
-		self.display.actual_config()
-		self.display.device.clear()
-
-	def starting(self):
-		self.start_program()
-		self.display.device.clear()
-
-	def wake_alarm(self, start_time):
-		start_time_str = start_time.strftime("%H:%M")
-		self.rtc.set_wake_alarm(start_time_str)
-
-	def sleep_alarm(self, end_time):
-		end_time_str = end_time.strftime("%H:%M")
-		self.rtc.set_shutdown_alarm(end_time_str)
-
 if __name__ == "__main__":
-	display = Display()
-	rtc = RTC()
-	rtc.set_system_time_from_rtc()
-	batsense = BatSense(display, rtc)
-	batsense.device_starting()
+	batsens = BatSens()
+	batsens.starting()

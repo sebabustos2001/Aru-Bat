@@ -1,6 +1,7 @@
 import os
 import pyaudio
 import wave
+import time
 
 from datetime import datetime, timedelta
 
@@ -9,7 +10,7 @@ class Microphone():
 				channels=1,
 				sample_frec=250000,
 				chunk=16384,
-				record_seconds=60,
+				record_seconds=59,
 				output_file="output.wav"):
 
 		# Micrphone settings
@@ -25,6 +26,10 @@ class Microphone():
 
 	def start_recording(self):
 		current_time = datetime.now()
+		new_minute = (current_time + timedelta(minutes=1)).replace(second=0, microsecond=0)
+		wait_time = (new_minute - current_time).total_seconds()
+		time.sleep(wait_time)
+		
 		timestamp = current_time.strftime("%Y-%m-%d-%H:%M:%S")
 		output_file = os.path.join(self.record_dir, f"BS01-{timestamp}.wav")	# Set audio file name
 
@@ -58,6 +63,7 @@ class Microphone():
 		wf.close()
 
 		print(f"Record File save as {output_file}")
+		time.sleep(0.1)
 
 	def close(self):
 		# Closing PyAudio
