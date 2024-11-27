@@ -11,7 +11,7 @@ class SHT3x:
 		self.address = address
 		self.mode_sht3x = 0x10  	# Default Mode: Low Precision
 
-		self.log_file = f"BS01_TEMP__{hex(self.address)}.txt".replace("0x", "")
+		self.log_file = f"BS01_TEMP_{hex(self.address)}.txt".replace("0x", "")
 
 		# If .txt file doesn't exist, generate .txt and write headers
 		if not os.path.exists(self.log_file):
@@ -21,7 +21,7 @@ class SHT3x:
 						"Temperature[C°]\t"
 						"Humidity[%]\n")
 
-	def sht3x_read(self):
+	def read(self):
 		self.bus.write_i2c_block_data(self.address, 0x2C, [self.mode_sht3x])	# Measure command
 		data = self.bus.read_i2c_block_data(self.address, 0x00, 6)	# 6 data bytes read for sensor
 		temperature_raw = data[0] << 8 | data[1]
@@ -33,7 +33,7 @@ class SHT3x:
 
 		return temperature, humidity
 
-	def sht3x_write(self, temperature, humidity):
+	def write(self, temperature, humidity):
 		# Write sensor data and Datetime on the log.txt file
 		current_time = datetime.now()
 		with open(self.log_file, 'a') as f:
@@ -43,9 +43,9 @@ class SHT3x:
 					f"{current_time.strftime('%H:%M:%S')}\t"
 					f"{temperature:.2f}\t{humidity:.2f}\n")
 
-	def sht3x_print(self):
+	def print(self):
 		# Print sensor data
-		temperature, humidity = self.sht3x_read()
+		temperature, humidity = self.read()
 		current_time = datetime.now()
 		print(f"Year-Month-Day\tTime\tTemperature\tHumidity[%]\tBS01_{hex(self.address)}\n"
 			f"{current_time.year}-"
@@ -54,18 +54,18 @@ class SHT3x:
 			f"{current_time.strftime('%H:%M:%S')}\t"
 			f"{temperature:.2f}\t{humidity:.2f}\n")
 
-	def sht3x_data(self):
+	def data(self):
 		"""
-		Call `read_sht3x` to read data from sensor and then, 
-		write the data on the .txt file and print it to terminal using `write_sht3x`.
+		Call `read` to read data from sensor and then, 
+		write the data on the .txt file and print it to terminal using `write`.
 		"""
 		try:
-			temperature, humidity = self.sht3x_read()
-			self.sht3x_write(temperature, humidity)
+			temperature, humidity = self.read()
+			self.write(temperature, humidity)
 		except Exception as e:
 			print(f"ERROR: READ/WRITE DATA SENSOR SHT3x {hex(self.address)}: {e}")
 
-	def sht3x_precision(self, mode='low'):
+	def precision(self, mode='low'):
 		if mode == 'low':
 			self.mode_sht3x = 0x10
 		elif mode == 'medium':

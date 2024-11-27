@@ -2,7 +2,7 @@ import time
 import json
 import os
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from multiprocessing import Process
 
 from lib.SHT3x import SHT3x
@@ -69,15 +69,20 @@ class BatSens:
 	def sensors(self):
 		# Instance for SHT3x sensors
 		SHT3xSensor_1 = SHT3x(address=0x44)
-		SHT3xSensor_1.sht3x_precision(mode='low')
+		SHT3xSensor_1.precision(mode='low')
 
 		#SHT3xSensor_2 = SHT3x(address=0x45)
 		#SHT3xSensor_2.sht3x_precision(mode='low')
 
+		current_time = datetime.now()
+		new_minute = (current_time + timedelta(minutes=1)).replace(second=0, microsecond=0)
+		wait_time = (new_minute - current_time).total_seconds()
+		time.sleep(wait_time)
+
 		while True:
-			SHT3xSensor_1.sht3x_data()
-			SHT3xSensor_1.sht3x_print()
-			time.sleep(30)
+			SHT3xSensor_1.data()
+			SHT3xSensor_1.print()
+			time.sleep(60)
 
 
 	def recording(self):

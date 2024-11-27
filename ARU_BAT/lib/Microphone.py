@@ -29,8 +29,8 @@ class Microphone():
 		new_minute = (current_time + timedelta(minutes=1)).replace(second=0, microsecond=0)
 		wait_time = (new_minute - current_time).total_seconds()
 		time.sleep(wait_time)
-		
-		timestamp = current_time.strftime("%Y-%m-%d-%H:%M:%S")
+
+		timestamp = new_minute.strftime("%Y-%m-%d-%H:%M:%S")
 		output_file = os.path.join(self.record_dir, f"BS01-{timestamp}.wav")	# Set audio file name
 
 		# Start record

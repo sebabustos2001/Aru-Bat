@@ -9,7 +9,7 @@ class GPS:
         self.session.stream(gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE)
 
         # Archivo de log
-        self.log_file = f"BS01_GPS.txt"
+        self.log_file = log_file
         if not os.path.exists(self.log_file):
             with open(self.log_file, 'w') as file:
                 # Encabezado con columnas para GPGGA, GPGSV y GPGSA
