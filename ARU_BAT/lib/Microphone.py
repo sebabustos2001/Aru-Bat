@@ -19,7 +19,7 @@ class Microphone():
 		self.chunk = chunk
 		self.record_seconds = record_seconds
 
-		self.record_dir = "BS01_Records"
+		self.record_dir = "BS03_Records"
 		if not os.path.exists(self.record_dir):
 			os.makedirs(self.record_dir)
 		self.audio = pyaudio.PyAudio()
@@ -31,7 +31,7 @@ class Microphone():
 		time.sleep(wait_time)
 
 		timestamp = new_minute.strftime("%Y-%m-%d-%H:%M:%S")
-		output_file = os.path.join(self.record_dir, f"BS01-{timestamp}.wav")	# Set audio file name
+		output_file = os.path.join(self.record_dir, f"BS03-{timestamp}.wav")	# Set audio file name
 
 		# Start record
 		print("Initializing record...")

@@ -11,7 +11,7 @@ class SHT3x:
 		self.address = address
 		self.mode_sht3x = 0x10  	# Default Mode: Low Precision
 
-		self.log_file = f"BS01_TEMP_{hex(self.address)}.txt".replace("0x", "")
+		self.log_file = f"BS03_TEMP_{hex(self.address)}.txt".replace("0x", "")
 
 		# If .txt file doesn't exist, generate .txt and write headers
 		if not os.path.exists(self.log_file):

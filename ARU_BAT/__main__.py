@@ -9,7 +9,6 @@ from lib.SHT3x import SHT3x
 from lib.RTC import RTC
 from lib.Microphone import Microphone
 from lib.Display import Display
-from lib.AudioProcessor import AudioProcessor
 from lib.GPS import GPS
 
 class BatSens:
@@ -92,16 +91,7 @@ class BatSens:
 		if self.configs["constant_record"] is True:
 			while True:
 				mic.start_recording()
-
-		elif self.configs["state_record"] is True:
-			return 0	# On develop
 		mic.close()
-
-	def audio_processing(self):
-		audio_process = AudioProcessor()
-		while True:
-			audio_process.process_audio_files()
-			time.sleep(2)
 
 	def config_device(self):
 		self.display.setup_config()
@@ -126,12 +116,10 @@ class BatSens:
 		self.temp_process = Process(target = self.sensors)
 		self.mic_process = Process(target = self.recording)
 		self.gps_process = Process(target=self.gps)
-		#self.audio_process = Process(target = self.audio_processing)
 
 		self.temp_process.start()
 		self.mic_process.start()
 		self.gps_process.start()
-		#self.audio_process.start()
 
 if __name__ == "__main__":
 	batsens = BatSens()
